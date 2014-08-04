@@ -34,15 +34,17 @@ urls = None
 
 
 class CyaniteReader(object):
-    __slots__ = ('path',)
+    __slots__ = ('path', 'tenant',)
 
-    def __init__(self, path):
+    def __init__(self, path, tenant):
         self.path = path
+        self.tenant = tenant
 
     def fetch(self, start_time, end_time):
         data = requests.get(urls.metrics, params={'path': self.path,
                                                   'from': start_time,
-                                                  'to': end_time}).json()
+                                                  'to': end_time,
+                                                  'tenant': self.tenant}).json()
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), []
         time_info = data['from'], data['to'], data['step']
@@ -60,6 +62,7 @@ class CyaniteFinder(object):
 
     def __init__(self, config=None):
         global urls
+        global tenant
         if config is not None:
             if 'urls' in config['cyanite']:
                 urls = config['cyanite']['urls']
@@ -68,17 +71,21 @@ class CyaniteFinder(object):
         else:
             from django.conf import settings
             urls = getattr(settings, 'CYANITE_URLS')
+            # TODO should be sent over from auth
+            tenant = getattr(settings, 'CYANITE_TENANT')
             if not urls:
                 urls = [settings.CYANITE_URL]
+            if not tenant:
+                tenant = 'NONE'
         urls = URLs(urls)
 
     def find_nodes(self, query):
         paths = requests.get(urls.paths,
-                             params={'query': query.pattern}).json()
+                             params={'query': query.pattern, 'tenant': tenant}).json()
         for path in paths:
             if path['leaf']:
                 yield CyaniteLeafNode(path['path'],
-                                      CyaniteReader(path['path']))
+                                      CyaniteReader(path['path'], tenant))
             else:
                 yield BranchNode(path['path'])
 
