@@ -1,5 +1,6 @@
 import itertools
 import time
+import json 
 
 try:
     from graphite_api.intervals import Interval, IntervalSet
@@ -10,6 +11,7 @@ except ImportError:
 
 import requests
 
+HEADERS = {'content-type': 'application/json'}
 
 class CyaniteLeafNode(LeafNode):
     __fetch_multi__ = 'cyanite'
@@ -41,10 +43,10 @@ class CyaniteReader(object):
         self.tenant = tenant
 
     def fetch(self, start_time, end_time):
-        data = requests.get(urls.metrics, params={'path': self.path,
+        data = requests.post(urls.metrics, data=json.dumps({'path': self.path,
                                                   'from': start_time,
                                                   'to': end_time,
-                                                  'tenant': self.tenant}).json()
+                                                  'tenant': self.tenant}), headers = HEADERS).json()
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), []
         time_info = data['from'], data['to'], data['step']
@@ -62,7 +64,6 @@ class CyaniteFinder(object):
 
     def __init__(self, config=None):
         global urls
-        global tenant
         if config is not None:
             if 'urls' in config['cyanite']:
                 urls = config['cyanite']['urls']
@@ -71,17 +72,16 @@ class CyaniteFinder(object):
         else:
             from django.conf import settings
             urls = getattr(settings, 'CYANITE_URLS')
-            # TODO should be sent over from auth
-            tenant = getattr(settings, 'CYANITE_TENANT')
             if not urls:
                 urls = [settings.CYANITE_URL]
-            if not tenant:
-                tenant = 'NONE'
         urls = URLs(urls)
 
-    def find_nodes(self, query):
-        paths = requests.get(urls.paths,
-                             params={'query': query.pattern, 'tenant': tenant}).json()
+    def find_nodes(self, query, tenant):
+  	print "starting lookup"
+  	start=time.time()
+        paths = requests.post(urls.paths,
+                             data=json.dumps({'query': query.pattern, 'tenant': tenant}), headers = HEADERS).json()
+	print "lookup took: %s" % (time.time()-start) 
         for path in paths:
             if path['leaf']:
                 yield CyaniteLeafNode(path['path'],
@@ -89,11 +89,15 @@ class CyaniteFinder(object):
             else:
                 yield BranchNode(path['path'])
 
-    def fetch_multi(self, nodes, start_time, end_time):
+    def fetch_multi(self, nodes, tenant, start_time, end_time):
         paths = [node.path for node in nodes]
-        data = requests.get(urls.metrics, params={'path': paths,
+	print "starting fetch"
+        start=time.time()
+        data = requests.post(urls.metrics, data=json.dumps({'path': paths,
                                                   'from': start_time,
-                                                  'to': end_time}).json()
+                                                  'to': end_time,
+						  'tenant': tenant}),headers = HEADERS).json()
+	print "fetch took %s" % (time.time()-start)
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), {}
         time_info = data['from'], data['to'], data['step']
