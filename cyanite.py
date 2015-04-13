@@ -1,6 +1,6 @@
 import itertools
 import time
-import json 
+import json
 
 try:
     from graphite_api.intervals import Interval, IntervalSet
@@ -77,11 +77,8 @@ class CyaniteFinder(object):
         urls = URLs(urls)
 
     def find_nodes(self, query, tenant):
-  	print "starting lookup"
-  	start=time.time()
         paths = requests.post(urls.paths,
                              data=json.dumps({'query': query.pattern, 'tenant': tenant}), headers = HEADERS).json()
-	print "lookup took: %s" % (time.time()-start) 
         for path in paths:
             if path['leaf']:
                 yield CyaniteLeafNode(path['path'],
@@ -91,13 +88,10 @@ class CyaniteFinder(object):
 
     def fetch_multi(self, nodes, tenant, start_time, end_time):
         paths = [node.path for node in nodes]
-	print "starting fetch"
-        start=time.time()
         data = requests.post(urls.metrics, data=json.dumps({'path': paths,
                                                   'from': start_time,
                                                   'to': end_time,
 						  'tenant': tenant}),headers = HEADERS).json()
-	print "fetch took %s" % (time.time()-start)
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), {}
         time_info = data['from'], data['to'], data['step']
