@@ -43,10 +43,12 @@ class CyaniteReader(object):
         self.tenant = tenant
 
     def fetch(self, start_time, end_time):
-        data = requests.post(urls.metrics, data=json.dumps({'path': self.path,
+        resp = requests.post(urls.metrics, data=json.dumps({'path': self.path,
                                                   'from': start_time,
                                                   'to': end_time,
-                                                  'tenant': self.tenant}), headers = HEADERS).json()
+                                                  'tenant': self.tenant}), headers = HEADERS)
+        data = resp.json()
+        resp.close()
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), []
         time_info = data['from'], data['to'], data['step']
@@ -77,8 +79,10 @@ class CyaniteFinder(object):
         urls = URLs(urls)
 
     def find_nodes(self, query, tenant):
-        paths = requests.post(urls.paths,
-                             data=json.dumps({'query': query.pattern, 'tenant': tenant}), headers = HEADERS).json()
+        resp = requests.post(urls.paths,
+                             data=json.dumps({'query': query.pattern, 'tenant': tenant}), headers = HEADERS)
+        paths = resp.json()
+        resp.close()
         for path in paths:
             if path['leaf']:
                 yield CyaniteLeafNode(path['path'],
@@ -88,10 +92,12 @@ class CyaniteFinder(object):
 
     def fetch_multi(self, nodes, tenant, start_time, end_time):
         paths = [node.path for node in nodes]
-        data = requests.post(urls.metrics, data=json.dumps({'path': paths,
+        resp = requests.post(urls.metrics, data=json.dumps({'path': paths,
                                                   'from': start_time,
                                                   'to': end_time,
-						  'tenant': tenant}),headers = HEADERS).json()
+						  'tenant': tenant}),headers = HEADERS)
+        data = resp.json()
+        resp.close()
         if 'error' in data:
             return (start_time, end_time, end_time - start_time), {}
         time_info = data['from'], data['to'], data['step']
